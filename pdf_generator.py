@@ -129,47 +129,60 @@ def _density_profile(project_info):
 
 
 def generate_pdf_bytes(project_info, footer_text, logo_produce_path, logo_itp_path):
+    """Genera una ficha A4 inspirada en la maqueta institucional original de Tableau."""
     buffer = io.BytesIO()
     density = _density_profile(project_info)
 
     settings = {
-        "normal":  {"spacer": 5, "body": 8.0, "body_lead": 10.2, "table": 7.2, "table_lead": 8.7, "pad": 2.5},
-        "compact": {"spacer": 3, "body": 7.5, "body_lead": 9.2,  "table": 6.7, "table_lead": 8.0, "pad": 1.8},
-        "dense":   {"spacer": 2, "body": 7.0, "body_lead": 8.3,  "table": 6.2, "table_lead": 7.2, "pad": 1.2},
+        "normal":  {"body": 8.0, "body_lead": 10.3, "table": 7.0, "table_lead": 8.2, "pad": 2.1, "gap": 8.0},
+        "compact": {"body": 7.5, "body_lead": 9.4,  "table": 6.6, "table_lead": 7.7, "pad": 1.6, "gap": 6.0},
+        "dense":   {"body": 7.0, "body_lead": 8.5,  "table": 6.2, "table_lead": 7.2, "pad": 1.1, "gap": 4.5},
     }[density]
 
+    # El original aprovecha un área central más estrecha que la primera versión.
+    content_left = 55
+    content_right = 55
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        leftMargin=LEFT_MARGIN,
-        rightMargin=RIGHT_MARGIN,
-        topMargin=TOP_MARGIN,
+        leftMargin=content_left,
+        rightMargin=content_right,
+        topMargin=18,
         bottomMargin=BOTTOM_MARGIN,
         allowSplitting=1,
     )
+    usable = PAGE_WIDTH - content_left - content_right
 
     styles = getSampleStyleSheet()
-    proj_title = ParagraphStyle(
-        "ProjTitle", parent=styles["Normal"], fontName="Helvetica-Bold",
-        fontSize=9.5 if density == "normal" else 8.8, leading=11,
-        textColor=COLOR_PRIMARY_RED, alignment=TA_LEFT,
+    project_box_label = ParagraphStyle(
+        "ProjectBoxLabel", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=9.0, leading=10.5, alignment=TA_CENTER, textColor=COLOR_TEXT_DARK,
     )
-    header_label = ParagraphStyle(
-        "HeaderLabel", parent=styles["Normal"], fontName="Helvetica-Bold",
-        fontSize=7.7, leading=9.2, textColor=COLOR_TEXT_DARK,
+    project_box_name = ParagraphStyle(
+        "ProjectBoxName", parent=project_box_label,
+        fontSize=10.0 if density == "normal" else 9.2, leading=11.5,
     )
-    header_val = ParagraphStyle(
-        "HeaderVal", parent=styles["Normal"], fontName="Helvetica",
-        fontSize=7.7, leading=9.2, textColor=COLOR_TEXT_DARK,
+    red_label = ParagraphStyle(
+        "RedLabel", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=7.2, leading=8.4, textColor=colors.white,
+    )
+    meta_value = ParagraphStyle(
+        "MetaValue", parent=styles["Normal"], fontName="Helvetica",
+        fontSize=7.4, leading=9.0, textColor=COLOR_TEXT_DARK,
     )
     section_heading = ParagraphStyle(
         "SectionHeading", parent=styles["Normal"], fontName="Helvetica-Bold",
-        fontSize=8.2, leading=9.7, textColor=COLOR_PRIMARY_RED,
+        fontSize=8.3, leading=9.8, textColor=COLOR_TEXT_DARK,
     )
     body_text = ParagraphStyle(
         "BodyTextCustom", parent=styles["Normal"], fontName="Helvetica",
         fontSize=settings["body"], leading=settings["body_lead"],
         textColor=COLOR_TEXT_DARK, alignment=TA_JUSTIFY,
+    )
+    physical_text = ParagraphStyle(
+        "PhysicalText", parent=body_text, alignment=TA_LEFT,
+        fontSize=max(settings["body"] - 0.2, 6.8),
+        leading=max(settings["body_lead"] - 0.5, 8.0),
     )
     tbl_cell = ParagraphStyle(
         "TblCell", parent=styles["Normal"], fontName="Helvetica",
@@ -180,55 +193,90 @@ def generate_pdf_bytes(project_info, footer_text, logo_produce_path, logo_itp_pa
     tbl_header = ParagraphStyle(
         "TblHeader", parent=styles["Normal"], fontName="Helvetica-Bold",
         fontSize=settings["table"], leading=settings["table_lead"],
-        textColor=COLOR_TEXT_DARK, alignment=TA_CENTER,
+        textColor=colors.white, alignment=TA_CENTER,
     )
-    pct_style = ParagraphStyle(
-        "PctStyle", parent=header_label, alignment=TA_RIGHT,
-        fontSize=7.5 if density != "dense" else 7.0,
+    pct_label_style = ParagraphStyle(
+        "PctLabel", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=7.0, leading=8.0, textColor=colors.white, alignment=TA_CENTER,
+    )
+    pct_value_style = ParagraphStyle(
+        "PctValue", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=7.2, leading=8.0, textColor=COLOR_TEXT_DARK, alignment=TA_CENTER,
     )
 
     story = []
 
-    # Encabezado institucional. Si falta un logo, se usa marcador visible en vez de romper el PDF.
-    produce = Paragraph("<b>PRODUCE</b>", header_label)
+    # 1) Logos en una línea propia, como en la ficha Tableau.
+    produce = Paragraph("<b>PRODUCE</b>", meta_value)
     if os.path.exists(logo_produce_path):
-        produce = Image(str(logo_produce_path), width=130, height=28, kind="proportional")
-    itp = Paragraph("<b>ITP</b>", header_label)
+        produce = Image(str(logo_produce_path), width=130, height=32, kind="proportional")
+    itp = Paragraph("<b>ITP</b>", meta_value)
     if os.path.exists(logo_itp_path):
-        itp = Image(str(logo_itp_path), width=100, height=28, kind="proportional")
+        itp = Image(str(logo_itp_path), width=95, height=32, kind="proportional")
 
-    title = Paragraph(f"<b>PROYECTO:</b><br/>{safe_text(project_info['proyecto'])}", proj_title)
-    header = Table([[produce, title, itp]], colWidths=[140, 265, 140])
-    header.setStyle(TableStyle([
+    logos = Table([[produce, "", itp]], colWidths=[145, usable - 240, 95])
+    logos.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN", (0, 0), (0, 0), "LEFT"),
         ("ALIGN", (2, 0), (2, 0), "RIGHT"),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
     ]))
-    story += [header, Spacer(1, settings["spacer"])]
+    story.append(logos)
 
-    meta = [
-        [Paragraph("<b>CUI</b>", header_label), Paragraph(f": {safe_text(project_info['cui'])}", header_val),
-         Paragraph("<b>TIPO</b>", header_label), Paragraph(f": {safe_text(project_info['tipo'])}", header_val)],
-        [Paragraph("<b>PROYECTO</b>", header_label), Paragraph(f": {safe_text(project_info['nombre_inversion'] or project_info['proyecto'])}", header_val),
-         Paragraph("<b>ESTADO</b>", header_label), Paragraph(f": {safe_text(project_info['estado'])}", header_val)],
+    # 2) Caja central del nombre del proyecto con borde rojo y pequeño acento superior.
+    project_box = Table([
+        [Paragraph("PROYECTO:", project_box_label)],
+        [Paragraph(safe_text(project_info["proyecto"]), project_box_name)],
+    ], colWidths=[usable])
+    project_box.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.8, COLOR_PRIMARY_RED),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, 0), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 0),
+        ("TOPPADDING", (0, 1), (-1, 1), 0),
+        ("BOTTOMPADDING", (0, 1), (-1, 1), 6),
+    ]))
+    story += [project_box, Spacer(1, 6)]
+
+    # 3) Datos generales: etiquetas rojas a la izquierda y valores en celdas claras.
+    label_w = 62
+    value_w = usable - label_w
+    meta_rows = [
+        ("CUI", project_info.get("cui", "")),
+        ("PROYECTO", project_info.get("nombre_inversion") or project_info.get("proyecto", "")),
+        ("TIPO", project_info.get("tipo", "")),
+        ("ESTADO", project_info.get("estado", "")),
     ]
-    meta_table = Table(meta, colWidths=[70, 260, 55, 160])
-    meta_table.setStyle(TableStyle([
+    meta_data = []
+    for label, value in meta_rows:
+        meta_data.append([
+            Paragraph(safe_text(label), red_label),
+            Paragraph(safe_text(value), meta_value),
+        ])
+    meta_table = Table(meta_data, colWidths=[label_w, value_w])
+    meta_style = [
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("TOPPADDING", (0, 0), (-1, -1), 1),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    story += [meta_table, Spacer(1, settings["spacer"] + 1)]
+        ("BACKGROUND", (0, 0), (0, -1), COLOR_PRIMARY_RED),
+        ("BOX", (0, 0), (-1, -1), 0.35, colors.HexColor("#E2E2E2")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#E8E8E8")),
+        ("LEFTPADDING", (0, 0), (0, -1), 4),
+        ("RIGHTPADDING", (0, 0), (0, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 2.2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.2),
+        ("LEFTPADDING", (1, 0), (1, -1), 5),
+    ]
+    meta_table.setStyle(TableStyle(meta_style))
+    story += [meta_table, Spacer(1, 8 if density == "normal" else 5)]
 
-    story += [Paragraph("I. Resumen de la Inversión", section_heading), Spacer(1, 1)]
+    # 4) Resumen.
+    story += [Paragraph("I. Resumen de la Inversión", section_heading), Spacer(1, 2)]
     story.append(Paragraph(safe_text(project_info.get("resumen") or "-"), body_text))
-    story.append(Spacer(1, settings["spacer"] + 1))
+    story.append(Spacer(1, 9 if density == "normal" else 6))
 
-    story += [Paragraph("II. Avance Financiero", section_heading), Spacer(1, 1)]
+    # 5) Tabla financiera: cabecera roja con texto blanco, fila Total destacada.
+    story += [Paragraph("II. Avance Financiero", section_heading), Spacer(1, 3)]
     fin_table_data = [[
         Paragraph("Componente", tbl_header), Paragraph("Monto de<br/>Inversión", tbl_header),
         Paragraph("Ejecución<br/>Acumulada", tbl_header), Paragraph("% Avance", tbl_header),
@@ -239,8 +287,8 @@ def generate_pdf_bytes(project_info, footer_text, logo_produce_path, logo_itp_pa
     for row in fin_list:
         is_total = row["componente"].strip().upper() == "TOTAL"
         cell = tbl_cell_bold if is_total else tbl_cell
-        right = ParagraphStyle("NumRight", parent=cell, alignment=TA_RIGHT)
-        center = ParagraphStyle("PctCenter", parent=cell, alignment=TA_CENTER)
+        right = ParagraphStyle(f"NumRight_{len(fin_table_data)}", parent=cell, alignment=TA_RIGHT)
+        center = ParagraphStyle(f"PctCenter_{len(fin_table_data)}", parent=cell, alignment=TA_CENTER)
         fin_table_data.append([
             Paragraph(safe_text(row["componente"]), cell),
             Paragraph(format_currency(row["monto"]), right),
@@ -253,10 +301,11 @@ def generate_pdf_bytes(project_info, footer_text, logo_produce_path, logo_itp_pa
     if len(fin_table_data) == 1:
         fin_table_data.append([Paragraph("Sin información financiera", tbl_cell)] + ["-"] * 5)
 
-    fin_table = Table(fin_table_data, colWidths=[145, 80, 80, 60, 90, 90], repeatRows=1)
+    widths = [usable * x for x in (0.23, 0.15, 0.16, 0.14, 0.16, 0.16)]
+    fin_table = Table(fin_table_data, colWidths=widths, repeatRows=1)
     table_style = [
-        ("BACKGROUND", (0, 0), (-1, 0), COLOR_HEADER_BG),
-        ("GRID", (0, 0), (-1, -1), 0.45, COLOR_BORDER),
+        ("BACKGROUND", (0, 0), (-1, 0), COLOR_PRIMARY_RED),
+        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#D5D5D5")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("TOPPADDING", (0, 0), (-1, -1), settings["pad"]),
         ("BOTTOMPADDING", (0, 0), (-1, -1), settings["pad"]),
@@ -266,12 +315,13 @@ def generate_pdf_bytes(project_info, footer_text, logo_produce_path, logo_itp_pa
     for idx, row in enumerate(fin_list, start=1):
         if row["componente"].strip().upper() == "TOTAL":
             table_style += [
-                ("BACKGROUND", (0, idx), (-1, idx), colors.HexColor("#FAFAFA")),
-                ("LINEABOVE", (0, idx), (-1, idx), 0.7, colors.HexColor("#999999")),
+                ("BACKGROUND", (0, idx), (-1, idx), colors.HexColor("#E9E9E9")),
+                ("LINEABOVE", (0, idx), (-1, idx), 0.55, colors.HexColor("#B0B0B0")),
             ]
     fin_table.setStyle(TableStyle(table_style))
-    story += [fin_table, Spacer(1, settings["spacer"] + 1)]
+    story += [fin_table, Spacer(1, 10 if density == "normal" else 6)]
 
+    # 6) Bloques físicos con el porcentaje en una caja roja/blanca a la derecha.
     fisico = project_info.get("fisico", {})
     blocks = [
         ("III. Avance Físico del Componente de Infraestructura", fisico.get("infraestructura")),
@@ -279,21 +329,42 @@ def generate_pdf_bytes(project_info, footer_text, logo_produce_path, logo_itp_pa
         ("V. Avance Físico del Componente de Capacitación", fisico.get("capacitacion")),
         ("VI. Avance Físico del Componente de Transferencia Tecnológica", fisico.get("transferencia")),
     ]
+
     for block_title, info in blocks:
         info = info or {"desc": "-", "porcentaje": None}
         desc = safe_text(info.get("desc") or "-")
         pct = format_pct(info.get("porcentaje"))
-        block_table = Table([[Paragraph(desc, body_text), Paragraph(f"<b>% Avance :</b> {pct}", pct_style)]], colWidths=[415, 130])
-        block_table.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        pct_box = Table([
+            [Paragraph("% Avance :", pct_label_style), Paragraph(pct, pct_value_style)]
+        ], colWidths=[56, 48])
+        pct_box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (0, 0), COLOR_PRIMARY_RED),
+            ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#F6F6F6")),
+            ("BOX", (0, 0), (-1, -1), 0.35, colors.HexColor("#D0D0D0")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+        ]))
+
+        title_and_pct = Table([
+            [Paragraph(block_title, section_heading), pct_box]
+        ], colWidths=[usable - 110, 110])
+        title_and_pct.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
             ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ("TOPPADDING", (0, 0), (-1, -1), 0),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ("ALIGN", (1, 0), (1, 0), "RIGHT"),
         ]))
+
         story.append(KeepTogether([
-            Paragraph(block_title, section_heading), Spacer(1, 1), block_table,
-            Spacer(1, settings["spacer"]),
+            title_and_pct,
+            Spacer(1, 2),
+            Paragraph(desc, physical_text),
+            Spacer(1, settings["gap"]),
         ]))
 
     def canvas_maker(*args, **kwargs):
