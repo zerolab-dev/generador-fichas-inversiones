@@ -15,7 +15,9 @@ st.set_page_config(
 )
 
 DEFAULT_FOOTER = (
-    "Fuente: Dirección de Gestión Operativa de Red CITE (DGO) - ITP / Actualización al 31.08.2026\n"
+    "Fuente:\n"
+    "Dirección de Gestión Operativa de Red CITE (DGO) - ITP / Actualización al 31.08.2026\n"
+    "Ministerio de Economía y Finanzas (MEF) / Actualización al 31.08.2026\n"
     "Elaboración: Dirección de Estadística, Seguimiento y Evaluación (DESE)"
 )
 
